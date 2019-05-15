@@ -48,9 +48,9 @@
 		mul $t3, $t1, $t1			# $t3 = pow(city[i][1] - city[j][1], 2)
 		add $t4, $t2, $t3			# $t4 = pow(city[i][0] - city[j][0], 2) + pow(city[i][1] - city[j][1], 2)
 
-		mtc1 $t4, $f1				# $f0 = $t4, move to coprocessor1
-		cvt.s.w $f2, $f1			# convert from integer($f0) to single($f1)
-		sprt.s $f3, $f2				# $f2 = sqrt(pow(city[i][0] - city[j][0], 2) + pow(city[i][1] - city[j][1], 2))
+		mtc1 $t4, $f1				# $f1 = $t4, move to coprocessor1
+		cvt.s.w $f2, $f1			# convert from integer($f1) to single($f2)
+		sprt.s $f3, $f2				# $f3 = sqrt(pow(city[i][0] - city[j][0], 2) + pow(city[i][1] - city[j][1], 2))
 
 		addi $t0, $zero, 7			# $t0 = 7
 		mul $t1, $s2, $t0			# $t1 = i($s2) * 7($t0)
@@ -128,15 +128,15 @@
 
 
 
-
+	# return value of getMinCost: $f0
+	# $f2 = tempCost, $f1 = tempMinCost
 	getMinCost0:
 		addi $sp, $sp, -12			# move stack pointer to save 3 values
 		sw $ra, 8($sp)				# save return address on stack
-		sw $a1, 4($sp)				# save argument1 visitMask($a1) on stack
-		sw $a0, 0($sp)				# save argument0 i($a0) on stack
+		sw $a1, 4($sp)				# save argument2 visitMask($a1) on stack
+		sw $a0, 0($sp)				# save argument1 i($a0) on stack
 
 		#????????????????????????
-		# $f2 = tempCost, $f1 = tempMinCost
 		mtc1 $zero, $f2 			# $f2 = 0.0
 		addi.s $f1, $f2, 99999999999# tempMinCost($f1) = 99999999999.0
 
@@ -159,8 +159,16 @@
 		swc1 $f3, 0($t4)			# memo[i][visitMask] = $f3
 
 		#리턴하기
-
-		addi $s0, $s0, 				# count #instructions
+		addi.s $f0, $f3, $zero		# $f0 = dist[i][0] (return value)
+# 첫 return에서만 return 전에 sp 옮기고, jr $ra 후에
+# 옮긴 sp서 argument, ra 꺼내고 바로 sp 옮긴다. 후엔 return 전에는
+# 아무것도 안해도 된다. 
+# ex) fact()
+# 맞으면 첫 return은 어디서? 항상 거기서?
+# sp 옮기고 arugment 꺼내오는 방법은 많긴 한데 위가 제일 쉬워보임.
+		addi $sp, $sp, 12			# ????????????????????????
+		addi $s0, $s0, 12			# count #instructions
+		jr $ra						# return
 
 
 
@@ -178,9 +186,12 @@
 		addi $s0, $s0, 10			# count #instructions
 		bc1t getMinCost2			# If tempCost == 0, go to getMinCost2
 
-		#리턴하기 
-
-		addi $s0, $s0, 				# count #instructions
+		#리턴하기
+		addi.s $f0, $f2, $zero		# $f0 = tempCost($f2) (return value)
+# 얘도 위처럼
+		addi $sp, $sp, 12			# ????????????????????????
+		addi $s0, $s0, 3			# count #instructions
+		jr $ra
 
 
 
@@ -228,14 +239,55 @@
 		addi $s0, $s0, 6			# count #instructions
 		jal getMinCost0 			# jump to getMinCost0
 
+		lw $ra, 8($sp)				# restore return address from stack
+		lw $a1, 4($sp)				# restore argument2(visitMask) from stack
+		lw $a0, 0($sp)				# restore argument1(i) from stack
+		addi $sp, $sp, 12			# pop 3 values from stack
+
+		addi $t0, $zero, 7			# $t0 = 7
+		mul $t1, $a0, $t0			# $t1 = i($a0) * 7($t0)
+		sll $t2, $t1, 2				# $t2 = (i * 7) * 4
+		sll $t3, $s3, 2				# $t3 = j * 4
+		add $t4, $t2, $t3			# $t4 = (i*7)*4 + j*4
+		add $t5, $t4, $s1 			# $t5 = address of dist[i][j]
+		lwc1 $f4, 0($t5)			# $f4 = dist[i][j]
+		add.s $f2, $f4, $f0			# tempCost($f2) = dist[i][j] + getMinCost()
 		
+		c.lt.s $f2, $f1 			# If tempCost < tempMinCost, condition code = 1. Else, 0.
+		addi $s0, $s0, 14			# count #instructions
+		bc1f getMinCost2_jfor3		# If tempCost >= tempMinCost, go to getMinCost2_jfor3
+
+		add $f1, $f2, $zero			# tempMinCost = tempCost
+		addi $s0, $s0, 1			# count #instructions
+
+
+	getMinCost2_jfor3:
+		addi $s3, $s3, 1			# j = j + 1
+		addi $s0, $s0, 2			# count #instructions
+		j getMinCost2_jfor0			# loop
 
 
 	getMinCost3:
+		addi $t0, $zero, 7			# $t0 = 7
+		mul $t1, $a0, $t0			# $t1 = i($a0) * 7($t0)
+		sll $t2, $t1, 2				# $t2 = (i * 7) * 4
+		sll $t0, $a1, 2				# $t0 = visitMask($a1) * 4
+		add $t1, $t2, $t0			# $t1 = (i*7)*4 + visitMask*4
+		add $t4, $t1, $s5 			# $t4 = address of memo[i][visitMask]
+		swc1 $f1, 0($t4)			# memo[i][visitMask] = tempMinCost
+
+		# 리턴하기 
+		add $f0, $f1, $zero			# $f0 = tempMinCost (return value)
+# 얘도 위처럼
+		addi $sp, $sp, 12			# ????????????????????????
+		addi $s0, $s0, 10			# count #instructions
+		jr $ra
+		
 
 
 
 
+#보희 코드
 add $a0, $zero, $s0      	# pass $s0(= i) as argument1
 addi $a1, $a1, 1		# pass cntVisit+1 as argument2
 
@@ -250,10 +302,11 @@ addi $s5, $s5, 16            # count Instruction
 
 jal DFS			# DFS(i, cntVisit+1)
 
-
+#??????????????????????????
 lwc1 $f3, 0($sp)		# restore dist[v][i]
 lw $s0, 4($sp)		# restore i
 lwc1 $f2, 8($sp)		# restore tmp
 addi $sp, $sp, 12
+#??????????????????????????
 lw $a0, 0($sp)
 lw $a1, 4($sp)
