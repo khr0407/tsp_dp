@@ -14,7 +14,8 @@
 		la $s1, dist				# $s1 = address of dist[0][0]
 		add $s2, $zero, $zero		# i($s2) = 0
 		la $s4, city				# $s4 = address of city[0][0]
-		addi $s0, $zero, 3			# count #instructions
+		la $s5, memo				# $s5 = address of memo[0][0]
+		addi $s0, $zero, 4			# count #instructions
 
 
 	ifor:
@@ -81,10 +82,10 @@
 
 
 	main2:
-		add $a0, $zero, $zero		# argument1 = 0
-		addi $a1, $zero, 1			# argument2 = 1
+		add $a0, $zero, $zero		# argument1(i) = 0
+		addi $a1, $zero, 1			# argument2(visitMask) = 1
 		addi $s0, $s0, 3			# count #instructions
-		jal getMinCost				# call getMinCost(0, 1)
+		jal getMinCost0				# call getMinCost(0, 1)
 									# $f0 = minCost (return value of getMinCost(0, 1))
 		li $v0, 4					# print "Minimum cost: "
 		la $a0, str0
@@ -108,7 +109,7 @@
 
 	pfor:
 		slti $t0, $s2, 8			# If i < 8, $t0 = 1. Else, $t0 = 0.
-		beq $t0, $zero, return
+		beq $t0, $zero, return		# If $t0 == 0, go to return
 
 		li $v0, 1					# print "%d", minPath[i]
 		lw $a0, 0($s3)				# $a0 = minPath[i]
@@ -128,9 +129,131 @@
 
 
 
-	getMinCost:
+	getMinCost0:
+		addi $sp, $sp, -12			# move stack pointer to save 3 values
+		sw $ra, 8($sp)				# save return address on stack
+		sw $a1, 4($sp)				# save argument1 visitMask($a1) on stack
+		sw $a0, 0($sp)				# save argument0 i($a0) on stack
+
+		#????????????????????????
+		# $f2 = tempCost, $f1 = tempMinCost
+		mtc1 $zero, $f2 			# $f2 = 0.0
+		addi.s $f1, $f2, 99999999999# tempMinCost($f1) = 99999999999.0
+
+		addi $t0, $zero, 1			# $t0 = 1
+		sll $t1, $t0, 7				# $t1 = 1 << 7
+		subi $t0, $t1, 1			# $t0 = (1 << 7) - 1
+		addi $s0, $s0, 10			# count #instructions
+		bne $a1, $t0, getMinCost1	# if visitMask($a1) != (1<<7)-1, go to getMinCost1
+
+		addi $t0, $zero, 7			# $t0 = 7
+		mul $t1, $a0, $t0			# $t1 = i($a0) * 7($t0)
+		sll $t2, $t1, 2				# $t2 = (i * 7) * 4
+		add $t3, $t2, $s1 			# $t3 = address of dist[i][0]
+
+		sll $t0, $a1, 2				# $t0 = visitMask($a1) * 4
+		add $t1, $t2, $t0			# $t1 = (i*7)*4 + visitMask*4
+		add $t4, $t1, $s5 			# $t4 = address of memo[i][visitMask]
+
+		lwc1 $f3, 0($t3)			# $f3 = dist[i][0]
+		swc1 $f3, 0($t4)			# memo[i][visitMask] = $f3
+
+		#리턴하기
+
+		addi $s0, $s0, 				# count #instructions
 
 
 
-	getMinPath:
+	getMinCost1:
+		addi $t0, $zero, 7			# $t0 = 7
+		mul $t1, $a0, $t0			# $t1 = i($a0) * 7($t0)
+		sll $t2, $t1, 2				# $t2 = (i * 7) * 4
+		sll $t0, $a1, 2				# $t0 = visitMask($a1) * 4
+		add $t1, $t2, $t0			# $t1 = (i*7)*4 + visitMask*4
+		add $t4, $t1, $s5 			# $t4 = address of memo[i][visitMask]
+		lwc1 $f3, 0($t4)			# $f3 = memo[i][visitMask]
+		add.s $f2, $f3, $zero		# tempCost($f2) = $f3
 
+		c.eq.s $f2, $zero			# If tempCost == 0, condition code = 1. Else, 0
+		addi $s0, $s0, 10			# count #instructions
+		bc1t getMinCost2			# If tempCost == 0, go to getMinCost2
+
+		#리턴하기 
+
+		addi $s0, $s0, 				# count #instructions
+
+
+
+	getMinCost2:
+		add $s3, $zero, $zero		# j($s3) = 0
+		addi $s0, $s0, 1			# count #instructions
+
+
+
+	getMinCost2_jfor0:
+		slti $t0, $s3, 7			# If j($s3) < 7, $t0 = 1. Else, $t0 = 0.
+		addi $s0, $s0, 2			# count #instructions
+		beq $t0, $zero, getMinCost3	# If $t0 = 0, go to getMinCost3
+
+		addi $s0, $s0, 1
+		bne $a0, $s0, getMinCost2_jfor1	# If i != j, go to getMinCost2_jfor1
+
+		addi $s3, $s3, 1			# j = j + 1
+		addi $s0, $s0, 2			# count #instructions
+		j getMinCost2_jfor0			# loop
+
+
+
+	getMinCost2_jfor1:
+		addi $t0, $zero, 1			# $t0 = 1
+		sll $t1, $t0, $s3			# $t1 = 1 << j
+		and $t2, $a1, $t1			# $t2 = visitMask & (1<<j)
+		addi $s0, $s0, 4			# count #instructions
+		beq $t2, $zero, getMinCost2_jfor2 # If visitMask&(i<<j) == 0, go to getMinCost2_jfor2
+
+		addi $s3, $s3, 1			# j = j + 1
+		addi $s0, $s0, 2			# count #instructions
+		j getMinCost2_jfor0			# loop
+
+
+
+	getMinCost2_jfor2:
+		addi $t0, $zero, 1			# $t0 = 1
+		sll $t1, $t0, $s3			# $t1 = 1 << j
+		or $t2, $a1, $t1			# $t2 = visitMask | (1<<j)
+
+		add $a0, $s3, $zero			# pass argument1 j
+		add $a1, $t2, $zero			# pass argument2 visitMask | (1<<j)
+
+		addi $s0, $s0, 6			# count #instructions
+		jal getMinCost0 			# jump to getMinCost0
+
+		
+
+
+	getMinCost3:
+
+
+
+
+add $a0, $zero, $s0      	# pass $s0(= i) as argument1
+addi $a1, $a1, 1		# pass cntVisit+1 as argument2
+
+#??????????????????????????
+addi $sp, $sp, -12
+swc1 $f3, 0($sp)		# save dist[v][i]
+sw $s0, 4($sp)		# save i
+swc1 $f2, 8($sp)		# save tmp
+#??????????????????????????
+
+addi $s5, $s5, 16            # count Instruction
+
+jal DFS			# DFS(i, cntVisit+1)
+
+
+lwc1 $f3, 0($sp)		# restore dist[v][i]
+lw $s0, 4($sp)		# restore i
+lwc1 $f2, 8($sp)		# restore tmp
+addi $sp, $sp, 12
+lw $a0, 0($sp)
+lw $a1, 4($sp)
