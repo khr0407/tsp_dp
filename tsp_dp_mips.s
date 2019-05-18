@@ -72,14 +72,12 @@
     sw $a1, 4($sp)          # save arg2
     sw $a0, 0($sp)          # save arg1
 
-    addi $t0, $zero, 1      # $t0 = 1
-    sll $t0, $t0, 7         # $t0 = 1 << 7
-    subi $t0, $t0, 1        # $t0 = (1 << 7) - 1
+    addi $t0, $zero, 127    # $t0 = (1 << 7) - 1 = 127
     bne $a1, $t0, gMC1      # if visitMask != $t0, branch to gMC1
 
     addi $t0, $zero, 7      # $t0 = 7
     mul $t0, $t0, $a0       # $t0 = ($a0 = i) * 7
-    sll $t0, $t0, 2         # $t0 = ($a0 = i) * 7 * 4
+    sll $t0, $t0, 2         # $t0 = i * 7 * 4
     add $t1, $t0, $s1       # $t1 = addr of dist[i][0]
 
     sll $t2, $a1, 2         # $t2 = ($a1 = visitMask) * 4
@@ -89,7 +87,7 @@
     l.s $f3, 0($t1)         # $f3 = dist[i][0]
     s.s $f3, 0($t3)         # memo[i][visitMask] = $f3
 
-    addi.s $f0, $f3, $zero  # $f0 = dist[i][0] (return value)
+    mov.s $f0, $f3          # $f0 = dist[i][0] (return value)
     addi $sp, $sp, 12       # move sp to pop 3 values
     jr $ra                  # return
 
@@ -101,15 +99,19 @@
     add $t1, $t0, $s5       # $t1 = addr of memo[i][visitMask]
     l.s $f3, 0($t1)         # $f3 = memo[i][visitMask]
 
-    c.eq.s $f3, $zero       # if $f3 == 0, condition-code = 1
+    mtc1 $zero, $f4         # $f4 = 0.0
+    c.eq.s $f3, $f4         # if $f3 == 0.0, condition-code = 1
     bc1t gMC2               # if condition-code == 1, branch to getMinCost2
 
-    addi.s $f0, $f3, $zero  # $f0 = memo[i][visitMask] (return value)
+    mov.s $f0, $f3          # $f0 = memo[i][visitMask] (return value)
     addi $sp, $sp, 12       # move sp to pop 3 values
     jr $ra                  # return
 
   gMC2:
-    addi.s $f1, $zero, 9999 # ($f1 = tempMinCost) = 9999
+    addi $t0, $zero, 9999   # $t0 = 9999
+    mtc1 $t0, $f5           # $f5 = $t0, move to coprocessor1
+    cvt.s.w $f6, $f5        # convert int($f5) to single($f6)
+    add.s $f1, $f4, $f6     # ($f1 = tempMinCost) = 9999
     add $s3, $zero, $zero   # ($s3 = j) = 0
 
   gMC2_for:
@@ -144,7 +146,7 @@
     c.lt.s $f2, $f1         # if $f2 < $f1, condition-code = 1
     bc1f gMC2_incj          # if condition-code == 0, continue
 
-    add $f1, $f2, $zero     # tempMinCost = tempCost
+    mov.s $f1, $f2          # tempMinCost = tempCost
 
   gMC2_incj:
     addi $s3, $s3, 1        # ($s3 = j) += 1
@@ -158,4 +160,5 @@
     add $t1, $t1, $s5       # $t1 = addr of memo[i][visitMask]
     s.s $f1, 0($t1)         # memo[i][visitMask] = tempMinCost
 
-    add $f0, $f1, $zero     # $f0 = tempMinCost (return value)
+    mov.s $f0, $f1          # $f0 = tempMinCost (return value)
+    jr $ra                  # return
