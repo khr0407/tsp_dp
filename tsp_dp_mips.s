@@ -11,14 +11,18 @@
     add $s2, $zero, $zero   # $s2 = i = 0
     la $s4, city            # $s4 = addr of city[0][0]
     la $s5, memo            # $s5 = addr of memo[0][0]
+    addi $s0, $zero, 4      # count # of instrunctions
 
   for1tst:
     slti $t0, $s2, 7        # if ($s2 = i) < 7, $t0 = 1
+    addi $s0, $zero, 2      # count # of instrunctions
     beq $t0, $zero, exit1   # if $t0 == 0, branch to exit1
     addi $s3, $s2, 1        # $s3 = j = i + 1
+    addi $s0, $zero, 1      # count # of instrunctions
 
   for2tst:
     slti $t0, $s3, 7        # if ($s3 = j) < 7, $t0 = 1
+    addi $s0, $zero, 2      # count # of instrunctions
     beq $t0, $zero, exit2   # if $t0 == 0, branch to exit2
 
     sll $t0, $s2, 3         # $t0 = ($s2 = i) * 8
@@ -55,6 +59,7 @@
     s.s $f3, 0($t2)         # dist[i][j] = dist between city i and j
 
     addi $s3, $s3, 1        # ($s3 = j) += 1
+    addi $s0, $zero, 32     # count # of instrunctions
     j for2tst
 
   exit1:
@@ -62,10 +67,15 @@
     addi $a1, $zero, 1      # arg2 = 1
     mtc1 $zero, $f4         # $f4 = 0.0 (constant zero)
     l.s $f6 f_max           # $f6 = 9999.0 (big enough number)
+    addi $s0, $zero, 5      # count # of instrunctions
     jal gMC1                # call getMinCost(0, 1)
+
+    li $v0, 10              # Exit
+    syscall
 
   exit2:
     addi $s2, $s2, 1        # ($s2 = i) += 1
+    addi $s0, $zero, 2      # count # of instrunctions
     j for1tst
 
   # test fin
@@ -75,10 +85,9 @@
     sw $ra, 16($sp)         # save return addr
     sw $a1, 12($sp)         # save arg2
     sw $a0, 8($sp)          # save arg1
-    sw $s3, 4($sp)          # save j
-    swc1 $f1, 0($sp)        # save tempMinCost
 
     addi $t0, $zero, 127    # $t0 = (1 << 7) - 1 = 127
+    addi $s0, $zero, 6      # count # of instrunctions
     bne $a1, $t0, gMC2      # if visitMask != $t0, branch to gMC2
 
     addi $t0, $zero, 7      # $t0 = 7
@@ -95,6 +104,7 @@
 
     mov.s $f0, $f3          # $f0 = dist[i][0] (return value)
     addi $sp, $sp, 20       # move sp to pop 5 values
+    addi $s0, $zero, 12     # count # of instrunctions
     jr $ra                  # return
 
   gMC2:
@@ -106,25 +116,31 @@
     l.s $f3, 0($t1)         # $f3 = memo[i][visitMask]
 
     c.eq.s $f3, $f4         # if $f3 == 0.0, condition-code = 1
+    addi $s0, $zero, 8      # count # of instrunctions
     bc1t gMC3               # if condition-code == 1, branch to gMC3
 
     mov.s $f0, $f3          # $f0 = memo[i][visitMask] (return value)
     addi $sp, $sp, 20       # move sp to pop 5 values
+    addi $s0, $zero, 3      # count # of instrunctions
     jr $ra                  # return
 
   gMC3:
     add.s $f1, $f4, $f6     # ($f1 = tempMinCost) = 9999.0
     add $s3, $zero, $zero   # ($s3 = j) = 0
+    addi $s0, $zero, 2      # count # of instrunctions
 
   gMC3_for:
     slti $t0, $s3, 7        # if ($s3 = j) < 7, $t0 = 1
+    addi $s0, $zero, 2      # count # of instrunctions
     beq $t0, $zero, gMC3_exit # if $t0 == 0, branch to gMC3_exit
 
+    addi $s0, $zero, 1      # count # of instrunctions
     beq $a0, $s3, gMC3_incj # if i == j, continue
 
     addi $t0, $zero, 1      # $t0 = 1
     sll $t0, $t0, $s3       # $t0 = 1 << j
     and $t1, $t0, $a1       # $t1 = visitMask & (1 << j)
+    addi $s0, $zero, 4      # count # of instrunctions
     bne $t1, $zero, gMC3_incj # if $t1 != 0, continue
 
     or $t1, $t0, $a1        # $t1 = visitMask | (1 << j)
@@ -132,6 +148,7 @@
     add $a1, $t1, $zero     # $a1 = arg2 = visitMask | (1 << j)
     sw $s3, 4($sp)          # save j
     swc1 $f1, 0($sp)        # save tempMinCost
+    addi $s0, $zero, 6      # count # of instrunctions
     jal gMC1                # recursive call
 
     lw $ra, 16($sp)         # restore return addr
@@ -139,7 +156,6 @@
     lw $a0, 8($sp)          # restore arg1
     lw $s3, 4($sp)          # restore j
     lwc1 $f1, 0($sp)        # restore tempMinCost
-    addi $sp, $sp, 20       # move sp to pop 5 values
 
     addi $t0, $zero, 7      # $t0 = 7
     mul $t0, $t0, $a0       # $t0 = ($a0 = i) * 7
@@ -150,12 +166,15 @@
 
     add.s $f2, $f3, $f0     # tempCost = dist[i][j] + getMinCost()
     c.lt.s $f2, $f1         # if $f2 < $f1, condition-code = 1
+    addi $s0, $zero, 14     # count # of instrunctions
     bc1f gMC3_incj          # if condition-code == 0, continue
 
     mov.s $f1, $f2          # tempMinCost = tempCost
+    addi $s0, $zero, 1      # count # of instrunctions
 
   gMC3_incj:
     addi $s3, $s3, 1        # ($s3 = j) += 1
+    addi $s0, $zero, 2      # count # of instrunctions
     j gMC3_for              # continue the loop
 
   gMC3_exit:
@@ -167,4 +186,6 @@
     s.s $f1, 0($t1)         # memo[i][visitMask] = tempMinCost
 
     mov.s $f0, $f1          # $f0 = tempMinCost (return value)
+    addi $sp, $sp, 20       # move sp to pop 5 values
+    addi $s0, $zero, 9      # count # of instrunctions
     jr $ra                  # return
