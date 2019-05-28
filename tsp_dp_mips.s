@@ -15,7 +15,7 @@
     add $s2, $zero, $zero   # $s2 = i = 0
     la $s4, city            # $s4 = addr of city[0][0]
     la $s5, memo            # $s5 = addr of memo[0][0]
-    addi $s0, $s0, 4        # count # of instrunctions
+    addi $s0, $zero, 4      # count # of instrunctions
 
   for1tst:
     slti $t0, $s2, 7        # if ($s2 = i) < 7, $t0 = 1
